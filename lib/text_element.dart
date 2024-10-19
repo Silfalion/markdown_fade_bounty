@@ -8,11 +8,15 @@ class TextElement extends HookWidget {
     required this.textToShow,
     this.inlineSpans,
     required this.onEnd,
+    this.style,
+    this.child,
   });
 
   final String textToShow;
   final InlineSpan? inlineSpans;
   final VoidCallback onEnd;
+  final TextStyle? style;
+  final Widget? child;
   @override
   Widget build(BuildContext context) {
     final controller =
@@ -29,14 +33,15 @@ class TextElement extends HookWidget {
       opacity: controller.value,
       onEnd: onEnd,
       duration: controller.duration ?? const Duration(seconds: 1),
-      child: inlineSpans != null
-          ? Text.rich(
-              inlineSpans!,
-            )
-          : MarkdownBody(
-              data: textToShow,
-              fitContent: true,
-            ),
+      child: child ??
+          (inlineSpans != null
+              ? Text.rich(
+                  inlineSpans!,
+                )
+              : Text(
+                  textToShow,
+                  style: style,
+                )),
     );
   }
 }

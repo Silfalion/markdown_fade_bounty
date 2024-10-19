@@ -94,6 +94,13 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "4.0.0"
+  flutter_markdown:
+    dependency: "direct main"
+    description:
+      path: "packages/flutter_markdown"
+      relative: true
+    source: path
+    version: "0.7.4+1"
   flutter_markdown_selectionarea:
     dependency: "direct main"
     description:

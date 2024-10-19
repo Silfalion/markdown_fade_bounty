@@ -1,9 +1,6 @@
-
-import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:markdown_fade/text_element.dart';
-import 'package:markdown/markdown.dart' as md;
-import 'package:simple_html_css/simple_html_css.dart';
 
 const markdownCunks = [
   '''
@@ -98,44 +95,38 @@ class MyHomePage extends StatefulWidget {
 class _MyHomePageState extends State<MyHomePage> {
   String? _currentMarkdown;
   int _markdownIndex = 0;
-  String? currentFragment;
-  final inlineSpans = <InlineSpan>[];
-  final newFragments = <InlineSpan>[];
+  List<String> currentTextFragments = [];
+  String previousChunk = '';
+  List<String> previousGFragments = [];
+  String newAddedText = '';
 
   void _addMarkdown(BuildContext context) {
+    if (_markdownIndex >= markdownCunks.length) {
+      return;
+    }
     _currentMarkdown ??= '';
     setState(() {
-      currentFragment = markdownCunks[_markdownIndex];
-
-      final htmlCode = md.markdownToHtml(currentFragment!);
-
-      final listNodes =HTML.toTextSpan(context, htmlCode);
-
-      newFragments.addAll([listNodes, TextSpan(text: ' ')]);
+      if (currentTextFragments.isNotEmpty) {
+        previousChunk = currentTextFragments.join('');
+        previousGFragments = [...currentTextFragments];
+      }
+      currentTextFragments = markdownCunks.sublist(0, _markdownIndex);
 
       _markdownIndex++;
     });
   }
 
-  Future<void> updateMarkdown() async {
-    if (currentFragment == null) {
-      return;
+  List<String> get diffFragments {
+    if(previousGFragments.isEmpty) {
+      return [];
     }
-    setState(() {
-      if (_currentMarkdown == null) {
-        _currentMarkdown = currentFragment!;
-      } else {
-        _currentMarkdown = _currentMarkdown! + currentFragment!;
-      }
-      inlineSpans.addAll(newFragments);
-      currentFragment = null;
-      newFragments.clear();
-    });
+    return currentTextFragments.sublist(
+      previousGFragments.length - 1, currentTextFragments.length);
   }
 
+  SomeKindOfController controller = SomeKindOfController();
   @override
   Widget build(BuildContext context) {
-
     return Scaffold(
       appBar: AppBar(
         backgroundColor: Theme.of(context).colorScheme.inversePrimary,
@@ -146,161 +137,49 @@ class _MyHomePageState extends State<MyHomePage> {
           constraints: const BoxConstraints(maxWidth: 700),
           child: Column(
             children: [
-              // MarkdownBody(data: markdownCunks.join('')),
-              Text.rich(
-                TextSpan(
-                  children: [
-                    ...inlineSpans.map((e) => e),
-                    if (newFragments.isNotEmpty)
-                      ...newFragments.map((e) => WidgetSpan(
-                          alignment: PlaceholderAlignment.middle,
-                          child: TextElement(
-                            key: Key(_markdownIndex.toString()),
-                            textToShow: "hi",
-                            inlineSpans: e,
-                            onEnd: updateMarkdown,
-                          ))),
-                  ],
+              MarkdownBody(
+                data: markdownCunks.join(''),
+              ),
+              MarkdownBody(
+                key: ValueKey(currentTextFragments.join('')),
+                data: currentTextFragments.join(''),
+                customMarkdownBuilderConfiguration:
+                    CustomMarkdownBuilderConfiguration(
+                  onElementParsed: (element, index) {
+                    if (index == controller.index) {
+                      controller.index++;
+                    }
+                  },
+                  customBuilder: (element, child, index) {
+                    if (previousChunk.lastIndexOf(diffFragments.join('')) !=
+                        currentTextFragments
+                            .join('')
+                            .lastIndexOf(diffFragments.join(''))) {
+                      return TextElement(
+                        textToShow: 'hi',
+                        onEnd: () {},
+                        child: child,
+                      );
+                    }
+                    return child;
+                  },
                 ),
               ),
             ],
           ),
         ),
       ),
-      floatingActionButton: Builder(
-        builder: (context) {
-          return FloatingActionButton(
-            onPressed: ()=>_addMarkdown(context),
-            tooltip: 'Increment',
-            child: const Icon(Icons.add),
-          );
-        }
-      ),
+      floatingActionButton: Builder(builder: (context) {
+        return FloatingActionButton(
+          onPressed: () => _addMarkdown(context),
+          tooltip: 'Increment',
+          child: const Icon(Icons.add),
+        );
+      }),
     );
   }
 }
 
-List<InlineSpan> convertMarkdownToInlineSpans(String text,
-    {bool preserveSoftLineBreaks = false}) {
-  final List<md.Node> nodes = md.Document().parse(text);
-  return _parseNodes(nodes, preserveSoftLineBreaks);
-}
-
-List<InlineSpan> _parseNodes(List<md.Node> nodes, bool preserveSoftLineBreaks) {
-  final List<InlineSpan> spans = [];
-
-  for (final node in nodes) {
-    if (node is md.Text) {
-      spans.addAll(_handleTextNode(node, preserveSoftLineBreaks));
-    } else if (node is md.Element) {
-      spans.addAll(_parseElement(node, preserveSoftLineBreaks));
-    }
-  }
-
-  return spans;
-}
-
-List<InlineSpan> _handleTextNode(md.Text node, bool preserveSoftLineBreaks) {
-  if (preserveSoftLineBreaks) {
-    return [TextSpan(text: node.text)];
-  } else {
-    // Remove soft line breaks (spaces at end of lines and leading spaces)
-    final String trimmedText = node.text.replaceAll(RegExp(r' ?\n *'), ' ');
-    return [TextSpan(text: trimmedText)];
-  }
-}
-
-List<InlineSpan> _parseElement(
-    md.Element element, bool preserveSoftLineBreaks) {
-  final List<InlineSpan> spans = [];
-
-  switch (element.tag) {
-    case 'strong':
-      spans.add(TextSpan(
-        children: _parseNodes(element.children!, preserveSoftLineBreaks),
-        style: const TextStyle(fontWeight: FontWeight.bold),
-      ));
-      break;
-    case 'em':
-      spans.add(TextSpan(
-        children: _parseNodes(element.children!, preserveSoftLineBreaks),
-        style: const TextStyle(fontStyle: FontStyle.italic),
-      ));
-      break;
-    case 'a':
-      spans.add(TextSpan(
-        children: _parseNodes(element.children!, preserveSoftLineBreaks),
-        style: const TextStyle(color: Colors.blue),
-        recognizer: TapGestureRecognizer()
-          ..onTap = () {
-            // Handle link tap
-            print('Link tapped: ${element.attributes['href']}');
-          },
-      ));
-      break;
-    case 'br':
-      spans.add(const TextSpan(text: '\n'));
-      break;
-    case 'p':
-    case 'h1':
-    case 'h2':
-    case 'h3':
-    case 'h4':
-    case 'h5':
-    case 'h6':
-    case 'li':
-      // For block-level elements, add a newline after parsing their children
-      spans.addAll(_parseNodes(element.children!, preserveSoftLineBreaks));
-      spans.add(const TextSpan(text: '\n'));
-      break;
-    default:
-      // For other elements, just parse their children
-      spans.addAll(_parseNodes(element.children!, preserveSoftLineBreaks));
-  }
-
-  return spans;
-}
-
-List<InlineSpan> markdownToTextSpans(String markdownText) {
-  final List<InlineSpan> spans = [];
-  final List<md.Node> nodes = md.Document().parse(markdownText);
-
-  for (final node in nodes) {
-    if (node is md.Text) {
-      final List<String> lines = node.text.split('\n');
-      for (int i = 0; i < lines.length; i++) {
-        spans.add(TextSpan(text: lines[i]));
-        if (i < lines.length - 1) {
-          spans.add(WidgetSpan(child: const SizedBox(height: 12.0))); // Line break
-        }
-      }
-    } else if (node is md.Element) {
-      switch (node.tag) {
-        case 'p':
-        case 'h1':
-        case 'h2':
-        case 'h3':
-        case 'h4':
-        case 'h5':
-        case 'h6':
-          final List<String> lines = node.textContent.split('\n');
-          for (int i = 0; i < lines.length; i++) {
-            spans.add(TextSpan(text: lines[i]));
-            if (i < lines.length - 1) {
-              spans.add(WidgetSpan(child: const SizedBox(height: 12.0))); // Line break
-            }
-          }
-          spans.add(WidgetSpan(child: const SizedBox(height: 12.0))); // Extra line break after block elements
-          break;
-        case 'br':
-          spans.add(WidgetSpan(child: const SizedBox(height: 12.0))); // Line break
-          break;
-        default:
-          spans.add(TextSpan(text: node.textContent));
-          break;
-      }
-    }
-  }
-
-  return spans;
+class SomeKindOfController {
+  int index = 0;
 }
