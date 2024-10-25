@@ -1,4 +1,3 @@
-
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:markdown_fade/text_element.dart';
@@ -100,20 +99,32 @@ class _MyHomePageState extends State<MyHomePage> {
   int _markdownIndex = 0;
   String? currentFragment;
   final inlineSpans = <InlineSpan>[];
-  final newFragments = <InlineSpan>[];
+  var newFragments = <InlineSpan>[];
+  String previousChunk = '';
+  List<InlineSpan> previousGFragments = [];
+  String newAddedText = '';
 
   void _addMarkdown(BuildContext context) {
+    if (_markdownIndex >= markdownCunks.length) {
+      return;
+    }
+    final tempFrag = markdownCunks.sublist(_markdownIndex, _markdownIndex + 1);
+    _markdownIndex++;
     _currentMarkdown ??= '';
+
     setState(() {
-      currentFragment = markdownCunks[_markdownIndex];
+      if (newFragments.isNotEmpty) {
+        inlineSpans.addAll(newFragments);
+      }
 
-      final htmlCode = md.markdownToHtml(currentFragment!);
+      final htmlCode = md.markdownToHtml(tempFrag.join(' '));
 
-      final listNodes =HTML.toTextSpan(context, htmlCode);
+      final listNodes = HTML.toTextSpan(context, htmlCode);
 
-      newFragments.addAll([listNodes, TextSpan(text: ' ')]);
-
-      _markdownIndex++;
+      newFragments = [
+        ...listNodes.children ?? <InlineSpan>[],
+        const TextSpan(text: ' ')
+      ];
     });
   }
 
@@ -135,7 +146,6 @@ class _MyHomePageState extends State<MyHomePage> {
 
   @override
   Widget build(BuildContext context) {
-
     return Scaffold(
       appBar: AppBar(
         backgroundColor: Theme.of(context).colorScheme.inversePrimary,
@@ -152,14 +162,37 @@ class _MyHomePageState extends State<MyHomePage> {
                   children: [
                     ...inlineSpans.map((e) => e),
                     if (newFragments.isNotEmpty)
-                      ...newFragments.map((e) => WidgetSpan(
-                          alignment: PlaceholderAlignment.middle,
-                          child: TextElement(
-                            key: Key(_markdownIndex.toString()),
-                            textToShow: "hi",
-                            inlineSpans: e,
-                            onEnd: updateMarkdown,
-                          ))),
+                      ...newFragments.map<List<InlineSpan>>((e) {
+                        if (e is TextSpan) {
+                          if (e.text == '\n\n') {
+                            return [e];
+                          }
+                          if (e.text?.isEmpty ?? true) {
+                            return [];
+                          }
+                          return e.text!.characters
+                              .map(
+                                (character) => WidgetSpan(
+                                  alignment: PlaceholderAlignment.middle,
+                                  child: TextElement(
+                                    key: Key(_markdownIndex.toString()),
+                                    inlineSpans: TextSpan(
+                                        text: character.toString(),
+                                        style: e.style),
+                                  ),
+                                ),
+                              )
+                              .toList();
+                        }
+                        return [
+                          WidgetSpan(
+                              alignment: PlaceholderAlignment.middle,
+                              child: TextElement(
+                                key: Key(_markdownIndex.toString()),
+                                inlineSpans: e,
+                              ))
+                        ];
+                      }).reduce((value, element) => [...value, ...element]),
                   ],
                 ),
               ),
@@ -167,15 +200,13 @@ class _MyHomePageState extends State<MyHomePage> {
           ),
         ),
       ),
-      floatingActionButton: Builder(
-        builder: (context) {
-          return FloatingActionButton(
-            onPressed: ()=>_addMarkdown(context),
-            tooltip: 'Increment',
-            child: const Icon(Icons.add),
-          );
-        }
-      ),
+      floatingActionButton: Builder(builder: (context) {
+        return FloatingActionButton(
+          onPressed: () => _addMarkdown(context),
+          tooltip: 'Increment',
+          child: const Icon(Icons.add),
+        );
+      }),
     );
   }
 }
@@ -271,7 +302,8 @@ List<InlineSpan> markdownToTextSpans(String markdownText) {
       for (int i = 0; i < lines.length; i++) {
         spans.add(TextSpan(text: lines[i]));
         if (i < lines.length - 1) {
-          spans.add(WidgetSpan(child: const SizedBox(height: 12.0))); // Line break
+          spans.add(
+              WidgetSpan(child: const SizedBox(height: 12.0))); // Line break
         }
       }
     } else if (node is md.Element) {
@@ -287,13 +319,17 @@ List<InlineSpan> markdownToTextSpans(String markdownText) {
           for (int i = 0; i < lines.length; i++) {
             spans.add(TextSpan(text: lines[i]));
             if (i < lines.length - 1) {
-              spans.add(WidgetSpan(child: const SizedBox(height: 12.0))); // Line break
+              spans.add(WidgetSpan(
+                  child: const SizedBox(height: 12.0))); // Line break
             }
           }
-          spans.add(WidgetSpan(child: const SizedBox(height: 12.0))); // Extra line break after block elements
+          spans.add(WidgetSpan(
+              child: const SizedBox(
+                  height: 12.0))); // Extra line break after block elements
           break;
         case 'br':
-          spans.add(WidgetSpan(child: const SizedBox(height: 12.0))); // Line break
+          spans.add(
+              WidgetSpan(child: const SizedBox(height: 12.0))); // Line break
           break;
         default:
           spans.add(TextSpan(text: node.textContent));

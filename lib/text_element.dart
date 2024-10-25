@@ -5,14 +5,10 @@ import 'package:flutter_markdown_selectionarea/flutter_markdown_selectionarea.da
 class TextElement extends HookWidget {
   const TextElement({
     super.key,
-    required this.textToShow,
-    this.inlineSpans,
-    required this.onEnd,
+    required this.inlineSpans,
   });
 
-  final String textToShow;
-  final InlineSpan? inlineSpans;
-  final VoidCallback onEnd;
+  final InlineSpan inlineSpans;
   @override
   Widget build(BuildContext context) {
     final controller =
@@ -27,16 +23,12 @@ class TextElement extends HookWidget {
 
     return AnimatedOpacity(
       opacity: controller.value,
-      onEnd: onEnd,
       duration: controller.duration ?? const Duration(seconds: 1),
-      child: inlineSpans != null
-          ? Text.rich(
-              inlineSpans!,
+      child: inlineSpans is TextSpan
+          ? Text(
+              (inlineSpans as TextSpan).text ?? '',
             )
-          : MarkdownBody(
-              data: textToShow,
-              fitContent: true,
-            ),
+          : Text.rich(TextSpan(children: [inlineSpans])),
     );
   }
 }
